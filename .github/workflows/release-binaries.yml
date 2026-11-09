@@ -604,7 +604,9 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           pattern: lichii-*-${{ github.sha }}
-          path: artifacts
+          # One artifact (this fork builds only the Windows PGO package) is extracted without its
+          # own folder, so give it the folder the packaging loop expects.
+          path: artifacts/lichii-windows-x86_64-pgo-${{ github.sha }}
 
       - name: Package release files
         shell: bash
