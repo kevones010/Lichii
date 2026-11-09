@@ -1870,9 +1870,14 @@ void Device::RemoveUnsuitableExtensions() {
                  properties.pipeline_binary.pipelineBinaryPrefersInternalCache != VK_FALSE,
                  properties.pipeline_binary.pipelineBinaryCompressedData != VK_FALSE);
     }
+    // AMD's Windows driver keeps no compiled pipelines between sessions for us (measured by the
+    // AMD Superior fork: Ocarina boot 513 s -> 14 s on an RX 6750 XT with stored binaries), so the
+    // store stays on there; NVIDIA keeps its own disk cache.
+    const bool amd_proprietary = properties.driver.driverID == VK_DRIVER_ID_AMD_PROPRIETARY;
     extensions.pipeline_binary =
         features.pipeline_binary.pipelineBinaries && extensions.maintenance5 &&
-        !properties.pipeline_binary.pipelineBinaryPrefersInternalCache && !DriverCachesPipelines();
+        (amd_proprietary || (!properties.pipeline_binary.pipelineBinaryPrefersInternalCache &&
+                             !DriverCachesPipelines()));
     RemoveExtensionFeatureIfUnsuitable(extensions.pipeline_binary, features.pipeline_binary,
                                        VK_KHR_PIPELINE_BINARY_EXTENSION_NAME);
 
