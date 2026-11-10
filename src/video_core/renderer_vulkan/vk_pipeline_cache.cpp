@@ -1332,6 +1332,8 @@ void PipelineCache::LoadPipelinesV2(u64 title_id,
     size_t compute_records = 0;
     size_t skipped_pipelines = 0;
     size_t queued_graphics = 0;
+    size_t adapted_pipelines = 0;
+    size_t unfit_pipelines = 0;
     for (const CacheV2::LogRecord* const planned : plan) {
         const CacheV2::LogRecord& record = *planned;
         if (stop_loading.stop_requested()) {
@@ -1352,14 +1354,23 @@ void PipelineCache::LoadPipelinesV2(u64 title_id,
             continue;
         }
         ++graphics_records;
-        const auto key = PipelineRecordKey<GraphicsPipelineCacheKey>(record.payload);
+        auto key = PipelineRecordKey<GraphicsPipelineCacheKey>(record.payload);
         if (!key) {
             unreadable(record, "Graphics pipeline record without a key");
             continue;
         }
         const size_t index = records.size();
         records.push_back(&record);
+        // A shared shader pack made on a GPU with EDS2 logic op (NVIDIA) asks for it in every key;
+        // a device without it would drop them all, so they are built without it, as the AMD
+        // Superior fork does (CheezerWheezer, 7a390e8).
+        if (key->state.extended_dynamic_state_2_logic_op != 0 &&
+            !dynamic_features.has_extended_dynamic_state_2_logic_op) {
+            key->state.extended_dynamic_state_2_logic_op.Assign(0);
+            ++adapted_pipelines;
+        }
         if (!KeyFitsDevice(*key)) {
+            ++unfit_pipelines;
             continue;
         }
         const u64 hash = key->Hash();
@@ -1401,6 +1412,12 @@ void PipelineCache::LoadPipelinesV2(u64 title_id,
         }
     }
 
+    if (adapted_pipelines != 0 || unfit_pipelines != 0) {
+        LOG_INFO(Render_Vulkan,
+                 "Shader cache v2: {} graphics pipelines built without EDS2 logic op for this "
+                 "device, {} that don't fit it",
+                 adapted_pipelines, unfit_pipelines);
+    }
     for (auto& [key, indices] : compute_keys) {
         ++state.total;
         u64 bytes = 0;
