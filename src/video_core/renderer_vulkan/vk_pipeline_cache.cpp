@@ -1361,12 +1361,16 @@ void PipelineCache::LoadPipelinesV2(u64 title_id,
         }
         const size_t index = records.size();
         records.push_back(&record);
-        // A shared shader pack made on a GPU with EDS2 logic op (NVIDIA) asks for it in every key;
-        // a device without it would drop them all, so they are built without it, as the AMD
-        // Superior fork does (CheezerWheezer, 7a390e8).
+        // Recorded with a dynamic logic op (NVIDIA, a shared shader pack), built where it is static
+        // (AMD's Windows driver): with logic op off the operation doesn't count (the key a draw
+        // gives here clears it), so the record is that key. With logic op on the operation is
+        // unknown, so it stays for another device. Port of Fritchii 9ea66c82 (Frizti).
         if (key->state.extended_dynamic_state_2_logic_op != 0 &&
-            !dynamic_features.has_extended_dynamic_state_2_logic_op) {
+            !dynamic_features.has_extended_dynamic_state_2_logic_op &&
+            !dynamic_features.has_dynamic_state3_logic_op_enable &&
+            key->state.dynamic_state.logic_op_enable == 0) {
             key->state.extended_dynamic_state_2_logic_op.Assign(0);
+            key->state.dynamic_state.logic_op.Assign(0);
             ++adapted_pipelines;
         }
         if (!KeyFitsDevice(*key)) {

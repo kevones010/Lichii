@@ -274,6 +274,14 @@ void FixedPipelineState::Refresh(Tegra::Engines::Maxwell3D& maxwell3d, DynamicFe
         }
     }
     dynamic_state.Refresh3(regs, features);
+    // The logic operation counts only with logic op on. Without a dynamic logic op (AMD's
+    // Windows driver) the key kept the register's operation with logic op off, so keys recorded
+    // where it is dynamic (NVIDIA) never matched a draw here. Only while the enable is static.
+    // Port of Fritchii 9ea66c82 (Frizti).
+    if (!extended_dynamic_state_2_logic_op && !features.has_dynamic_state3_logic_op_enable &&
+        !dynamic_state.logic_op_enable) {
+        dynamic_state.logic_op.Assign(0);
+    }
     if (xfb_enabled) {
         RefreshXfbState(xfb_state, regs);
     }
